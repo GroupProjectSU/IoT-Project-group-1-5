@@ -1,8 +1,8 @@
-api_token = "c065424eafcbd07ffdc28594fe30f2d7519bb72276c2de9699201a719d710ef3"  # LIFX API token used as authorization to access an accounts LIFX bulbs
-
 import requests  # makes it possible to send data over the internet
 import json      # makes it possible to handle data in JSON format 
 
+LAMP_ID = "id:d073d53b9e28"
+api_token = "c065424eafcbd07ffdc28594fe30f2d7519bb72276c2de9699201a719d710ef3"  # LIFX API token used as authorization to access an accounts LIFX bulbs
 
 def set_lifx_brightness(token, selector, brightness, powerValue): # token parameter to access an accounts LIFX bulbs, selector parameter to specify which bulb to control, brightness paramater to specify the desired brightnesslevel
     # The method constructs a request to send data over to the LIFX system. 
@@ -27,15 +27,19 @@ def set_lifx_brightness(token, selector, brightness, powerValue): # token parame
 brightness_level = 0.2  # Set brightness to 20%
 
 
-#if brightness_level == 0:
- #   powerValue = "off"
-#else:
- #   powerValue = "on"
+if brightness_level == 0:
+    powerValue = "off"
+else:
+    powerValue = "on"
 
 
 
 # Calling the function to set brightness
-responseData = set_lifx_brightness(api_token, "all", brightness_level, powerValue) #this executes the set_lifx_brightness to constructs and send a request over to the LIFX system with desiered .   
+responseData = set_lifx_brightness(api_token, LAMP_ID, brightness_level, powerValue) #this executes the set_lifx_brightness to constructs and send a request over to the LIFX system with desiered .   
 
 #print response from the LIFX API
 print(json.dumps(responseData, indent=4, sort_keys=True)) #json.dump converts objects to strings (responseData), indent=4 for easier reading, sort_keys=True to sort the respons data
+
+
+
+
