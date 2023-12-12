@@ -23,7 +23,7 @@ def set_lifx_brightness(token, selector, brightness, powerValue): # token parame
     return response.json()  # When the message is sent, the LIFX API will send back a respons, this method returns/takes and convert it to a json format. 
   
 
-brightness_level = 1.0  # Set brightness to 20%
+brightness_level = 0.2  # Set brightness to 20%
 
 
 #if brightness_level == 0:
