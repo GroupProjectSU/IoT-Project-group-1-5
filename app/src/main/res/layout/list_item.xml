@@ -5,4 +5,5 @@
     android:layout_height="wrap_content"
     android:padding="16dp"
     android:gravity="center_vertical"
-    android:textAppearance="?android:attr/textAppearanceListItem" />
+    android:textAppearance="?android:attr/textAppearanceListItem"
+    />

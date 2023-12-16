@@ -31,6 +31,7 @@
         />
 
 
+
     <EditText
         android:id="@+id/valueInput"
         android:layout_width="match_parent"
