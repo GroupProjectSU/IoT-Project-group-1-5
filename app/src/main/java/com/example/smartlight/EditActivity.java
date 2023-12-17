@@ -31,7 +31,7 @@ public class EditActivity extends AppCompatActivity {
         TimeInterval interval = (TimeInterval) getIntent().getSerializableExtra("selectedInterval");
         int selectedPosition = getIntent().getIntExtra("selectedPosition", -1);
 
-        // Populate time pickers and value input
+
         populateFields(interval);
 
         confirmButton.setOnClickListener(v -> finishEditing(true, interval, selectedPosition));

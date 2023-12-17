@@ -1,14 +1,19 @@
 package com.example.smartlight;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.AdapterView;
+
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ArrayAdapter;
 import java.util.ArrayList;
+import com.google.gson.Gson;
+import android.app.AlertDialog;
 
 public class ScheduleActivity extends AppCompatActivity {
 
@@ -17,6 +22,7 @@ public class ScheduleActivity extends AppCompatActivity {
     private ArrayAdapter<TimeInterval> adapter;
     private ArrayList<TimeInterval> userPreferences;
     private int selectedPosition = -1;
+    private SharedPreferences preferences;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +38,7 @@ public class ScheduleActivity extends AppCompatActivity {
 
         scheduleButton.setBackgroundColor(getResources().getColor(R.color.dark_purple));
 
+        initializeSharedPreferences();
 
         userPreferences = (ArrayList<TimeInterval>) getIntent().getSerializableExtra("userPreferences");
 
@@ -41,7 +48,9 @@ public class ScheduleActivity extends AppCompatActivity {
         setupButtonListeners();
     }
 
-
+    private void initializeSharedPreferences() {
+        preferences = getSharedPreferences("com.example.smartlight.preferences", MODE_PRIVATE);
+    }
 
 
 
@@ -67,12 +76,39 @@ public class ScheduleActivity extends AppCompatActivity {
             userPreferences.remove(selectedPosition);
             adapter.notifyDataSetChanged();
             selectedPosition = -1;
+            saveUserPreferences(); //Save changes
         }
     }
 
     private void handleResetButtonClick(View view) {
-        userPreferences.clear();
-        adapter.notifyDataSetChanged();
+        //create an AlertDialog Builder
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Reset Preferences");
+        builder.setMessage("Are you sure that you want to reset your preferences?");
+
+        //set the Positive button ("YES") and its click listener
+        builder.setPositiveButton("YES", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                //user clicked "YES" so  the preferences gets cleared
+                userPreferences.clear();
+                adapter.notifyDataSetChanged();
+                saveUserPreferences(); //save changes
+            }
+        });
+
+        //set the Negative button ("Cancel") and its click listener
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                //user clicked "Cancel", so dismiss the dialog and do nothing
+                dialog.dismiss();
+            }
+        });
+
+        //create and show the AlertDialog
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
     private void handleEditButtonClick(View view) {
@@ -94,8 +130,17 @@ public class ScheduleActivity extends AppCompatActivity {
             if (updatedPosition >= 0) {
                 userPreferences.set(updatedPosition, updatedInterval);
                 adapter.notifyDataSetChanged();
+                saveUserPreferences(); //Save changes
             }
         }
+    }
+
+    private void saveUserPreferences() {
+        SharedPreferences.Editor editor = preferences.edit();
+        Gson gson = new Gson();
+        String json = gson.toJson(userPreferences);
+        editor.putString("userPreferences", json);
+        editor.apply();
     }
 
     private void navigateBackToMainActivity(View view) {
