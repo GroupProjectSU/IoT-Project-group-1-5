@@ -1,8 +1,12 @@
 package com.example.smartlight;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
@@ -10,6 +14,7 @@ import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.TimePicker;
 import android.app.AlertDialog;
 import java.util.ArrayList;
@@ -30,6 +35,8 @@ public class MainActivity extends AppCompatActivity {
     private EditText valueInput;
     private ArrayList<TimeInterval> userPreferences;
 
+    private TextView luxView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
         homeButton = findViewById(R.id.homeButton);
         scheduleButton = findViewById(R.id.scheduleButton);
         valueInput = findViewById(R.id.valueInput);
+        luxView = findViewById(R.id.lightIntensity);
 
         timePicker1.setIs24HourView(true);
         timePicker2.setIs24HourView(true);
@@ -63,6 +71,17 @@ public class MainActivity extends AppCompatActivity {
         boolean switchState = preferences.getBoolean(SWITCH_STATE_KEY, false);  //this retrieves the boolean value of the key "SWITCH_STATE_KEY" in the preferences file, the false argument is just a default value that the get method will return if the "SWITCH_STATE_KEY" has no value-pair. Then puts that value in a variable
         toggleButton.setChecked(switchState); //this then sets the switch state according to the retrieved boolean value.
     }
+
+    private BroadcastReceiver luxReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent.getAction().equals("com.example.smartlight.LUX_UPDATE")) {
+                String luxValue = intent.getStringExtra("lux");
+                luxView.setText(luxValue);
+            }
+        }
+    };
+
 
 
     private void setToggleButtonListener() {
@@ -150,8 +169,15 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         saveUserPreferences(); //Override the onPause method to save the list of intervals when the application pauses
+        unregisterReceiver(luxReceiver);
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter filter = new IntentFilter("com.example.smartlight.LUX_UPDATE");
+        registerReceiver(luxReceiver, filter);
+    }
 
     private void showValueInputErrorDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);

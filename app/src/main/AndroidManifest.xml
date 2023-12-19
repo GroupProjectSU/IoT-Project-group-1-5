@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- For MQTT -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -12,6 +17,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SmartLight"
         tools:targetApi="31">
+
+        <!-- For MQTT -->
+        <service android:name="org.eclipse.paho.android.service.MqttService" />
+        <service android:name=".MqttService" />
+
         <activity
             android:name=".EditActivity"
             android:exported="false" />
