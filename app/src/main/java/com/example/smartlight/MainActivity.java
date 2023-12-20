@@ -46,6 +46,11 @@ public class MainActivity extends AppCompatActivity {
         initializeSharedPreferences();
         loadUserPreferences();
         setupButtonListeners();
+
+        System.out.println("MainActivity test");
+        System.err.println("Maintest2");
+
+        startService(new Intent(this, MqttService.class));
     }
 
     private void initializeViews() {
