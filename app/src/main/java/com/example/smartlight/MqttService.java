@@ -5,6 +5,16 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import java.lang.reflect.Type;
+import java.nio.file.attribute.UserPrincipal;
+import java.util.ArrayList;
+
+import java.util.Calendar;
+import java.util.TimeZone;
+
 import org.eclipse.paho.client.mqttv3.IMqttActionListener;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.IMqttToken;
@@ -21,20 +31,59 @@ public class MqttService extends Service {
     private static final String TOPIC = "iot/sensor";
     public static final String LUX_VALUE_INTENT = "com.example.smartlight.LUX_VALUE_INTENT";
     public static final String LUX_VALUE_EXTRA = "luxValue";
-
     private MqttAndroidClient client;
+    private ArrayList<TimeInterval> userPreferences;
+    private ArrayList<TimeInterval> defaultPreferences = new ArrayList<>();
+    private int currentHour, currentMinute;
+
+
 
     @Override
     public void onCreate() {
         super.onCreate();
         connectToMqttBroker();
         System.out.println("Testing if service works");
+        createDefaultPreferences();
+        updateSwedishTime();
     }
+
+
+    private void updateSwedishTime() { //OBS!: Call this method everytime before using the currentHour and currentMinute variables!!!
+        Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Europe/Stockholm"));
+        currentHour = calendar.get(Calendar.HOUR_OF_DAY);
+        currentMinute = calendar.get(Calendar.MINUTE);
+    }
+
+    private void createDefaultPreferences(){
+        //06:00-09:00 - 50 lux
+        defaultPreferences.add(new TimeInterval(6, 0, 9, 0, 50));
+
+        //(09:00 to 17:00) - 150 lux
+        defaultPreferences.add(new TimeInterval(9, 0, 17, 0, 150));
+
+        //(17:00 to 20:00) - 100 lux
+        defaultPreferences.add(new TimeInterval(17, 0, 20, 0, 100));
+
+        //(20:00 to 22:00) - 75 lux
+        defaultPreferences.add(new TimeInterval(20, 0, 22, 0, 75));
+
+        //(22:00 to 06:00) - 50 lux
+        defaultPreferences.add(new TimeInterval(22, 0, 6, 0, 50));
+    }
+
+
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.hasExtra("userPreferences")) {
+            String jsonPreferences = intent.getStringExtra("userPreferences");
+            Gson gson = new Gson();
+            Type type = new TypeToken<ArrayList<TimeInterval>>() {}.getType();
+            userPreferences = gson.fromJson(jsonPreferences, type);
+        }
         return START_STICKY;
     }
+
 
     private void connectToMqttBroker() {
         String clientId = MqttClient.generateClientId();
@@ -71,7 +120,12 @@ public class MqttService extends Service {
 
             @Override
             public void messageArrived(String topic, MqttMessage message) {
+                updateSwedishTime();
                 String luxValue = new String(message.getPayload());
+                int currentLux = Integer.parseInt(luxValue);
+                int desiredLux = getDesiredLux(currentHour, currentMinute);
+                adjustLampBrightness(currentLux, desiredLux);
+
                 Log.d(TAG, "Message received: " + luxValue);
                 System.out.println("Message received on topic " + topic + ": " + luxValue);
                 System.out.println(message);
@@ -85,6 +139,31 @@ public class MqttService extends Service {
             public void deliveryComplete(IMqttDeliveryToken token) {
             }
         });
+    }
+
+    private int getDesiredLux(int hour, int minute) {
+        TimeInterval currentTimeInterval = null;
+
+        for (TimeInterval pref : userPreferences) {
+            if (((pref.getStartHour() <= hour) && (pref.getStartMinute() <= minute)) && ((pref.getEndHour() >= hour) && (pref.getEndMinute() >= minute))) {
+                currentTimeInterval = pref;
+                break;
+            }
+        }
+
+        if (currentTimeInterval == null) {
+            for (TimeInterval defaultPref : defaultPreferences) {
+                if (((defaultPref.getStartHour() <= hour) && (defaultPref.getStartMinute() <= minute)) && ((defaultPref.getEndHour() >= hour) && (defaultPref.getEndMinute() >= minute))) {
+                    currentTimeInterval = defaultPref;
+                    break;
+                }
+            }
+        }
+
+        return currentTimeInterval.getValue();
+    }
+
+    private void adjustLampBrightness(int currentLux, int desiredLux) {
     }
 
     private void subscribeToTopic() {

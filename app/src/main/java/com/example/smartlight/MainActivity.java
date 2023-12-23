@@ -2,7 +2,7 @@ package com.example.smartlight;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.content.BroadcastReceiver;
+
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -24,6 +24,25 @@ import java.lang.reflect.Type;
 import java.util.Collections;
 
 
+import android.util.Log;
+
+
+import java.nio.file.attribute.UserPrincipal;
+
+
+
+
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+
+import info.mqtt.android.service.Ack;
+import info.mqtt.android.service.MqttAndroidClient;
+
+
 public class MainActivity extends AppCompatActivity {
 
     private Switch toggleButton;
@@ -34,8 +53,17 @@ public class MainActivity extends AppCompatActivity {
     private TimePicker timePicker1, timePicker2;
     private EditText valueInput;
     private ArrayList<TimeInterval> userPreferences;
-
     private TextView luxView;
+
+
+    private static final String TAG = "MainActivity";
+
+    private static final String SERVER_URI = "tcp://test.mosquitto.org:1883";
+    private static final String TOPIC = "iot/sensor";
+    public static final String LUX_VALUE_INTENT = "com.example.smartlight.LUX_VALUE_INTENT";
+    public static final String LUX_VALUE_EXTRA = "luxValue";
+
+    private MqttAndroidClient client;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,11 +75,11 @@ public class MainActivity extends AppCompatActivity {
         loadUserPreferences();
         setupButtonListeners();
 
-        System.out.println("MainActivity test");
-        System.err.println("Maintest2");
+        connectToMqttBroker();
 
-        startService(new Intent(this, MqttService.class));
     }
+
+
 
     private void initializeViews() {
         toggleButton = findViewById(R.id.toggleButton);
@@ -77,16 +105,71 @@ public class MainActivity extends AppCompatActivity {
         toggleButton.setChecked(switchState); //this then sets the switch state according to the retrieved boolean value.
     }
 
-    private BroadcastReceiver luxReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().equals("com.example.smartlight.LUX_UPDATE")) {
-                String luxValue = intent.getStringExtra("lux");
+
+    private void connectToMqttBroker() {
+        String clientId = MqttClient.generateClientId();
+        client = new MqttAndroidClient(this.getApplicationContext(), SERVER_URI, clientId, Ack.AUTO_ACK);
+
+        client.connect(null, new IMqttActionListener() {
+            @Override
+            public void onSuccess(IMqttToken asyncActionToken) {
+                Log.d(TAG, "Connected to MQTT Broker!");
+                subscribeToTopic();
+                System.out.println("Subscribed successfully to topic: " + TOPIC);
+            }
+
+            @Override
+            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                Log.e(TAG, "Failed to connect to MQTT Broker!");
+                System.out.println("Failed to subscribe to topic: " + TOPIC);
+            }
+        });
+
+        client.setCallback(new MqttCallbackExtended() {
+            @Override
+            public void connectComplete(boolean reconnect, String serverURI) {
+                if (reconnect) {
+                    Log.d(TAG, "Reconnected to : " + serverURI);
+                    subscribeToTopic();
+                }
+            }
+
+            @Override
+            public void connectionLost(Throwable cause) {
+                Log.d(TAG, "Connection to MQTT Broker lost!");
+            }
+
+            @Override
+            public void messageArrived(String topic, MqttMessage message) {
+
+                String luxValue = new String(message.getPayload());
+
+
+                Log.d(TAG, "Message received: " + luxValue);
+                System.out.println("Message received on topic " + topic + ": " + luxValue);
+                System.out.println(message);
+
                 luxView.setText(luxValue);
             }
-        }
-    };
 
+            @Override
+            public void deliveryComplete(IMqttDeliveryToken token) {
+            }
+        });
+    }
+
+    private void subscribeToTopic() {
+        client.subscribe(TOPIC, 1, null, new IMqttActionListener() {
+            @Override
+            public void onSuccess(IMqttToken asyncActionToken) {
+                System.out.println("Subscription successful to topic: " + TOPIC);
+            }
+            @Override
+            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                System.out.println("Failed to subscribe to topic: " + TOPIC);
+            }
+        });
+    }
 
 
     private void setToggleButtonListener() {
@@ -97,6 +180,16 @@ public class MainActivity extends AppCompatActivity {
                 SharedPreferences.Editor editor = preferences.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
                 editor.putBoolean(SWITCH_STATE_KEY, isChecked); //puts the new value of the key "SWITCH_STATE_KEY" to the boolean of the switch that represents it's state
                 editor.apply(); //applies the changes to the file
+
+                if (client != null && client.isConnected()) {
+                    String publishTopic = "iot/switch";
+                    String message = Boolean.toString(isChecked);
+                    client.publish(publishTopic, message.getBytes(), 1, false);
+                    Log.d(TAG, "Switch state (" + message + ") published to MQTT topic: " + publishTopic);
+                } else {
+                    Log.d(TAG, "MQTT client not connected, cannot publish switch state");
+                }
+
             }
         });
     }
@@ -147,6 +240,14 @@ public class MainActivity extends AppCompatActivity {
         String json = gson.toJson(userPreferences); //converts the userpreference list into JSON format
         editor.putString("userPreferences", json); //puts the json string (userpreference list) in the key "userPreferences"
         editor.apply(); //applies the changes to the file
+
+        if(client != null && client.isConnected()) {
+            String publishTopic = "iot/prefLux";
+            client.publish(publishTopic, json.getBytes(), 1, false);
+            Log.d(TAG, "User preferences published to MQTT topic: " + publishTopic);
+        } else {
+            Log.d(TAG, "MQTT client not connected, cannot publish user preferences");
+        }
     }
 
     private void loadUserPreferences() {
@@ -174,15 +275,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         saveUserPreferences(); //Override the onPause method to save the list of intervals when the application pauses
-        unregisterReceiver(luxReceiver);
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        IntentFilter filter = new IntentFilter("com.example.smartlight.LUX_UPDATE");
-        registerReceiver(luxReceiver, filter);
-    }
 
     private void showValueInputErrorDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);

@@ -9,16 +9,15 @@ public class TimeInterval implements Serializable {
     private int startMinute;
     private int endHour;
     private int endMinute;
-    private double value;
+    private int value;
 
-    public TimeInterval(int startHour, int startMinute, int endHour, int endMinute, double value) {
+    public TimeInterval(int startHour, int startMinute, int endHour, int endMinute, int value) {
         this.startHour = startHour;
         this.startMinute = startMinute;
         this.endHour = endHour;
         this.endMinute = endMinute;
         this.value = value;
     }
-
 
     public int getStartHour() {
         return startHour;
@@ -52,23 +51,16 @@ public class TimeInterval implements Serializable {
         this.endMinute = endMinute;
     }
 
-    public double getValue() {
+    public int getValue() {
         return value;
     }
 
-    public void setValue(double value) {
+    public void setValue(int value) {
         this.value = value;
     }
 
-
     @Override
     public String toString() {
-        return "TimeInterval{" +
-                "startHour=" + startHour +
-                ", startMinute=" + startMinute +
-                ", endHour=" + endHour +
-                ", endMinute=" + endMinute +
-                ", value=" + value +
-                '}';
+        return "TimeInterval{" + "startHour=" + startHour + ", startMinute=" + startMinute + ", endHour=" + endHour + ", endMinute=" + endMinute + ", value=" + value + '}';
     }
 }
