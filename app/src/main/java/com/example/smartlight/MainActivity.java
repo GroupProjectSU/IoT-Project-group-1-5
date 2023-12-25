@@ -45,10 +45,14 @@ import info.mqtt.android.service.MqttAndroidClient;
 
 public class MainActivity extends AppCompatActivity {
 
+
+    //SharedPreferences variables
+    private SharedPreferences preferencesToSave; //this object is used to save and retrieve data as key-value pairs
+    private static final String preferenceName = "com.example.smartlight.preferences";  //it works as a key for the shared preference file name for where the preference will be saved
+    private static final String switchStateKey = "switch_state"; //this is the key to save and retrieve data for the switch state
+
+    //UI variables
     private Switch toggleButton;
-    private SharedPreferences preferences; //this object is used to save and retrieve data as key-value pairs
-    private static final String PREFERENCES_NAME = "com.example.smartlight.preferences";  //it works as a key for the shared preference file name for where the preference will be saved
-    private static final String SWITCH_STATE_KEY = "switch_state"; //this is the key to save and retrieve data
     private Button homeButton, addButton, scheduleButton;
     private TimePicker timePicker1, timePicker2;
     private EditText valueInput;
@@ -56,14 +60,11 @@ public class MainActivity extends AppCompatActivity {
     private TextView luxView;
 
 
-    private static final String TAG = "MainActivity";
-
-    private static final String SERVER_URI = "tcp://test.mosquitto.org:1883";
-    private static final String TOPIC = "iot/sensor";
-    public static final String LUX_VALUE_INTENT = "com.example.smartlight.LUX_VALUE_INTENT";
-    public static final String LUX_VALUE_EXTRA = "luxValue";
-
-    private MqttAndroidClient client;
+    //MQTT-variables
+    private static final String TAG = "MainActivity";  //this constant is used to categorise the log messages in a tag, so that we can filter the log messages
+    private static final String SERVER_URI = "tcp://test.mosquitto.org:1883"; //this tells the client where to connect to the broker, for publishing and recieving messages.
+    private static final String topic = "iot/sensor"; //the topic where the lux sensors readings are being published
+    private MqttAndroidClient client; //the MqttAndroidClient allows the application to connect and communicate with to the broker
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
         setupButtonListeners();
 
         connectToMqttBroker();
-
     }
 
 
@@ -100,73 +100,71 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initializeSharedPreferences() {
-        preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE); //the get-method is used to declare the sharedpreference object as a file that you can store and retrieve key-value pairs, with a mode (private/public)
-        boolean switchState = preferences.getBoolean(SWITCH_STATE_KEY, false);  //this retrieves the boolean value of the key "SWITCH_STATE_KEY" in the preferences file, the false argument is just a default value that the get method will return if the "SWITCH_STATE_KEY" has no value-pair. Then puts that value in a variable
+        preferencesToSave = getSharedPreferences(preferenceName, MODE_PRIVATE); //the get-method is used to declare the sharedpreference object as a file that you can store and retrieve key-value pairs, with a mode (private/public)
+        boolean switchState = preferencesToSave.getBoolean(switchStateKey, false);  //this retrieves the boolean value of the key "switchStateKey" in the preferences file, the false argument is just a default value that the get method will return if the "switchStateKey" has no value-pair. Then puts that value in a variable
         toggleButton.setChecked(switchState); //this then sets the switch state according to the retrieved boolean value.
     }
 
 
     private void connectToMqttBroker() {
-        String clientId = MqttClient.generateClientId();
-        client = new MqttAndroidClient(this.getApplicationContext(), SERVER_URI, clientId, Ack.AUTO_ACK);
+        String clientId = MqttClient.generateClientId();  //this creates a unique ID for the client to use for the broker. so that the broker can manage the clients session.
+        client = new MqttAndroidClient(this.getApplicationContext(), SERVER_URI, clientId, Ack.AUTO_ACK); //this creates a client with information regarding, the applications context (recourses, classes...), the servers URI (where to connect to the broker), the uniquely generated client ID, and Ack.AUTO_ACK which automatically acknowledge received messages.
 
-        client.connect(null, new IMqttActionListener() {
+        client.connect(null, new IMqttActionListener() {  //this method tries to establish a connecttion with the broker, with a listener as a parameter that triggers callbacks regarding the connection
             @Override
-            public void onSuccess(IMqttToken asyncActionToken) {
-                Log.d(TAG, "Connected to MQTT Broker!");
-                subscribeToTopic();
-                System.out.println("Subscribed successfully to topic: " + TOPIC);
+            public void onSuccess(IMqttToken asyncActionToken) { //this callback method will run if the connection to the broker was successful
+                Log.d(TAG, "successfully connected to the MQTT broker");
+                subscribeToTopic(); //with a successful connection to the broker, a subscription to a topic can be initiated.
+                System.out.println("successfully subscribed to the topic: " + topic);
             }
 
             @Override
-            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                Log.e(TAG, "Failed to connect to MQTT Broker!");
-                System.out.println("Failed to subscribe to topic: " + TOPIC);
+            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {//this callback method will run if the connection to the broker was unsuccessful
+                Log.e(TAG, "connection to the MQTT Broker failed");
+                System.out.println("subscription to the topic: " + topic + "failed");
             }
         });
 
-        client.setCallback(new MqttCallbackExtended() {
+        client.setCallback(new MqttCallbackExtended() { //handles actions/events regarding the connection to the mqtt broker.
             @Override
-            public void connectComplete(boolean reconnect, String serverURI) {
+            public void connectComplete(boolean reconnect, String serverURI) { //when a connection is done (either initially or a reconnection) then the (re)subscription is also done
                 if (reconnect) {
-                    Log.d(TAG, "Reconnected to : " + serverURI);
+                    Log.d(TAG, "successfully reconnected to : " + serverURI);
                     subscribeToTopic();
                 }
             }
 
             @Override
-            public void connectionLost(Throwable cause) {
-                Log.d(TAG, "Connection to MQTT Broker lost!");
+            public void connectionLost(Throwable cause) { //when the connection to the broker is lost, the write a messegae to the log.
+                Log.d(TAG, "the connection to the MQTT Broker is lost");
             }
 
             @Override
-            public void messageArrived(String topic, MqttMessage message) {
+            public void messageArrived(String topic, MqttMessage message) { //this method gets triggered when a message is sent from the server, containing the topic in which the message was sent to, and the message
 
-                String luxValue = new String(message.getPayload());
+                String luxValue = new String(message.getPayload()); //this extracts the message and puts it in a string variable
 
-
-                Log.d(TAG, "Message received: " + luxValue);
-                System.out.println("Message received on topic " + topic + ": " + luxValue);
+                Log.d(TAG, "message received from the topic " + topic + ": " + luxValue);
+                System.out.println("message received in topic " + topic + ": " + luxValue);
                 System.out.println(message);
-
-                luxView.setText(luxValue);
+                luxView.setText(luxValue);//shows the lux value in the application
             }
 
             @Override
-            public void deliveryComplete(IMqttDeliveryToken token) {
+            public void deliveryComplete(IMqttDeliveryToken token) { //when a message is published by the client to the broker, this method gets triggered
             }
         });
     }
 
-    private void subscribeToTopic() {
-        client.subscribe(TOPIC, 1, null, new IMqttActionListener() {
+    private void subscribeToTopic() { //this method makes the client subscribe to a topic, so that the application can recieve the lux values from the lux sensor
+        client.subscribe(topic, 1, null, new IMqttActionListener() { //this method attempts to subscribe to a specific topic (iot/sensor), with information regarding quality of service (1 as in atleast one try for the broker to deliver the message), and it also includes a listener as a parameter that triggers callbacks regarding the subscription attempt.
             @Override
-            public void onSuccess(IMqttToken asyncActionToken) {
-                System.out.println("Subscription successful to topic: " + TOPIC);
+            public void onSuccess(IMqttToken asyncActionToken) { //this callback method will run if the subscription to the broker was successful
+                System.out.println("successfully subscribed to the topic: " + topic);
             }
             @Override
-            public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
-                System.out.println("Failed to subscribe to topic: " + TOPIC);
+            public void onFailure(IMqttToken asyncActionToken, Throwable exception) { //this callback method will run if the subscription to the broker was unsuccessful
+                System.out.println("subscription to the topic: " + topic + " failed");
             }
         });
     }
@@ -176,18 +174,19 @@ public class MainActivity extends AppCompatActivity {
         toggleButton.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                //Save the switchs state
-                SharedPreferences.Editor editor = preferences.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
-                editor.putBoolean(SWITCH_STATE_KEY, isChecked); //puts the new value of the key "SWITCH_STATE_KEY" to the boolean of the switch that represents it's state
+                //Save the state of the switch
+                SharedPreferences.Editor editor = preferencesToSave.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
+                editor.putBoolean(switchStateKey, isChecked); //puts the new value of the key "switchStateKey" to the boolean of the switch that represents it's state
                 editor.apply(); //applies the changes to the file
 
+                //Publish to a topic in the broker the switches state
                 if (client != null && client.isConnected()) {
                     String publishTopic = "iot/switch";
                     String message = Boolean.toString(isChecked);
                     client.publish(publishTopic, message.getBytes(), 1, false);
-                    Log.d(TAG, "Switch state (" + message + ") published to MQTT topic: " + publishTopic);
+                    Log.d(TAG, "The swithces is checked: " + message + " + and it's state has been published to the topic: " + publishTopic);
                 } else {
-                    Log.d(TAG, "MQTT client not connected, cannot publish switch state");
+                    Log.d(TAG, "The switches state has not been published, check if the MQTT client is connected");
                 }
 
             }
@@ -215,27 +214,28 @@ public class MainActivity extends AppCompatActivity {
 
         int value;
         try {
-            //parse the input as a double then round it to the nearest int
+            //put the lux value in variable and round it up to an int
             double doubleValue = Double.parseDouble(valueInput.getText().toString());
             value = (int) Math.round(doubleValue);
         } catch (NumberFormatException e) {
-            value = 0; //puts the value as 0 if the input is not a valid number
+            value = 0; //if there were any errors, the value would be 0
         }
 
         TimeInterval newInterval = new TimeInterval(startHour, startMinute, endHour, endMinute, value);
 
-        if (checkForConflictingTimeInterval(newInterval)) {
+        //before adding a new user preference, we must see if he has any other preference that conflicts with the one he wants to create
+        if (checkForConflictingPreferences(newInterval)) {
             showConflictResolutionDialog(newInterval);
         } else {
             userPreferences.add(newInterval);
-            saveUserPreferences(); //Save the updated list to SharedPreferences
+            saveUserPreferences(); //save the updated list to SharedPreferences
         }
     }
 
     private void saveUserPreferences() {
         //Sort and save the list
         Collections.sort(userPreferences, (i1, i2) -> compareTimeIntervals(i1, i2)); //sorts the list according to the compareTimeIntervals method as a comparator
-        SharedPreferences.Editor editor = preferences.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
+        SharedPreferences.Editor editor = preferencesToSave.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
         Gson gson = new Gson(); //gson is a library that can convert java objects to a JSON formatted string and vice versa. This was needed since lists was too complex to be stored in the sharedpreferences
         String json = gson.toJson(userPreferences); //converts the userpreference list into JSON format
         editor.putString("userPreferences", json); //puts the json string (userpreference list) in the key "userPreferences"
@@ -244,15 +244,15 @@ public class MainActivity extends AppCompatActivity {
         if(client != null && client.isConnected()) {
             String publishTopic = "iot/prefLux";
             client.publish(publishTopic, json.getBytes(), 1, false);
-            Log.d(TAG, "User preferences published to MQTT topic: " + publishTopic);
+            Log.d(TAG, "A list of the Users preferences (Timeintevall) has been published to the MQTT topic: " + publishTopic);
         } else {
-            Log.d(TAG, "MQTT client not connected, cannot publish user preferences");
+            Log.d(TAG, "the list of the users preferences has has not been published, check if the MQTT client is connected");
         }
     }
 
     private void loadUserPreferences() {
         Gson gson = new Gson(); //gson is a library that can convert java objects to a JSON formatted string and vice versa. This was needed since lists was too complex to be stored in the sharedpreferences
-        String json = preferences.getString("userPreferences", null); //retrieves the json string that is stored in the "userPreferences" key, if there is no value, then null will be retrieved
+        String json = preferencesToSave.getString("userPreferences", null); //retrieves the json string that is stored in the "userPreferences" key, if there is no value, then null will be retrieved
         Type type = new TypeToken<ArrayList<TimeInterval>>() {}.getType(); //defines which type of data that the gson will convert the json string to, which in this case is ArrayList<TimeInterval>
         userPreferences = gson.fromJson(json, type); //the gson converts the retrieved json-string to the defiened type (ArrayList<TimeInterval>)
 
@@ -302,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private boolean checkForConflictingTimeInterval(TimeInterval newInterval) {
+    private boolean checkForConflictingPreferences(TimeInterval newInterval) {
         for (TimeInterval existingInterval : userPreferences) {
             if (isTimeOverlap(existingInterval, newInterval)) {
                 return true;
@@ -312,27 +312,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean isTimeOverlap(TimeInterval interval1, TimeInterval interval2) {
-        //convert times to minutes since midnight
+        //convert time-stamps to minutes since midnight
         int start1 = interval1.getStartHour() * 60 + interval1.getStartMinute();
         int end1 = interval1.getEndHour() * 60 + interval1.getEndMinute();
         int start2 = interval2.getStartHour() * 60 + interval2.getStartMinute();
         int end2 = interval2.getEndHour() * 60 + interval2.getEndMinute();
 
-        //handle intervals that cross midnight
+        //handle intervals that cross midnight so that intervall with start times that is pre-midnight and end-times that are post midnight make sense.
         if (end1 <= start1) end1 += 24 * 60;
         if (end2 <= start2) end2 += 24 * 60;
 
-        //check if interval1 is within one day and interval2 spans across two days
+        //check if one time interval (1) is within one day and the other interval (2) spans across two days
         if (end2 > 24 * 60 && start1 < end1) {
             if (start1 < (end2 - 24 * 60)) return true;
             if (end1 > start2 + 24 * 60) return true;
         }
 
-        //check if interval2 is within one day and interval1 spans across two days
+        //check if time interval 2 is within one day and time interval 1 spans across two days
         if (end1 > 24 * 60 && start2 < end2) {
             if (start2 < (end1 - 24 * 60)) return true;
             if (end2 > start1 + 24 * 60) return true;
         }
+
 
         //standard time overlap (check for intervals within the same day)
         return start1 < end2 && start2 < end1;
@@ -341,7 +342,7 @@ public class MainActivity extends AppCompatActivity {
     private void showConflictResolutionDialog(TimeInterval newInterval) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Time Interval Conflict");
-        builder.setMessage("There is already a time interval that overlaps with the one you want to create. Do you want to remove the overlapping interval and proceed?");
+        builder.setMessage("There is already a time interval that conflicts with the one you want to create! Do you want to remove the conflicting interval and proceed?");
 
         builder.setPositiveButton("Remove", new DialogInterface.OnClickListener() {
             @Override
