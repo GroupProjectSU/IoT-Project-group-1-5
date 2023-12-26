@@ -7,13 +7,16 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
-
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.ArrayAdapter;
 import java.util.ArrayList;
+import java.util.Collections;
+
 import com.google.gson.Gson;
 import android.app.AlertDialog;
+
+import info.mqtt.android.service.MqttAndroidClient;
 
 public class ScheduleActivity extends AppCompatActivity {
 
@@ -23,36 +26,32 @@ public class ScheduleActivity extends AppCompatActivity {
     private ArrayList<TimeInterval> userPreferences;
     private int selectedPosition = -1;
     private SharedPreferences preferences;
+    private MqttAndroidClient client;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.screen2);
 
-
         editButton = findViewById(R.id.editButton);
         removeButton = findViewById(R.id.removeButton);
         resetButton = findViewById(R.id.resetButton);
         scheduleList = findViewById(R.id.scheduledItemsList);
         scheduleButton = findViewById(R.id.scheduleButton);
-
         scheduleButton.setBackgroundColor(getResources().getColor(R.color.dark_purple));
 
         initializeSharedPreferences();
-
         userPreferences = (ArrayList<TimeInterval>) getIntent().getSerializableExtra("userPreferences");
-
-
         setupListViewAdapter();
         setupListViewClickListener();
         setupButtonListeners();
+
+        client = MainActivity.getMqttClient();
     }
 
     private void initializeSharedPreferences() {
         preferences = getSharedPreferences("com.example.smartlight.preferences", MODE_PRIVATE);
     }
-
-
 
     private void setupListViewAdapter() {
         adapter = new TimeIntervalAdapter(this, userPreferences);
@@ -76,37 +75,20 @@ public class ScheduleActivity extends AppCompatActivity {
             userPreferences.remove(selectedPosition);
             adapter.notifyDataSetChanged();
             selectedPosition = -1;
-            saveUserPreferences(); //Save changes
+            saveAndUpdatePreferences();
         }
     }
 
     private void handleResetButtonClick(View view) {
-        //create an AlertDialog Builder
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Reset Preferences");
         builder.setMessage("Are you sure that you want to reset your preferences?");
-
-        //set the Positive button ("YES") and its click listener
-        builder.setPositiveButton("YES", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                //user clicked "YES" so  the preferences gets cleared
-                userPreferences.clear();
-                adapter.notifyDataSetChanged();
-                saveUserPreferences(); //save changes
-            }
+        builder.setPositiveButton("YES", (dialog, which) -> {
+            userPreferences.clear();
+            adapter.notifyDataSetChanged();
+            saveAndUpdatePreferences();
         });
-
-        //set the Negative button ("Cancel") and its click listener
-        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                //user clicked "Cancel", so dismiss the dialog and do nothing
-                dialog.dismiss();
-            }
-        });
-
-        //create and show the AlertDialog
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
         AlertDialog dialog = builder.create();
         dialog.show();
     }
@@ -117,20 +99,25 @@ public class ScheduleActivity extends AppCompatActivity {
             Intent intent = new Intent(ScheduleActivity.this, EditActivity.class);
             intent.putExtra("selectedInterval", selectedInterval);
             intent.putExtra("selectedPosition", selectedPosition);
+            intent.putExtra("userPreferences", userPreferences);
             startActivityForResult(intent, 2);
         }
     }
 
+    private void saveAndUpdatePreferences() {
+        saveUserPreferences();
+        mqttpublisher.publishUserPreferences(this, client, userPreferences);
+    }
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 2 && resultCode == RESULT_OK) {
-            TimeInterval updatedInterval = (TimeInterval) data.getSerializableExtra("updatedInterval");
-            int updatedPosition = data.getIntExtra("updatedPosition", -1);
-            if (updatedPosition >= 0) {
-                userPreferences.set(updatedPosition, updatedInterval);
+            ArrayList<TimeInterval> updatedPreferences = (ArrayList<TimeInterval>) data.getSerializableExtra("userPreferences");
+            if (updatedPreferences != null) {
+                userPreferences.clear();
+                userPreferences.addAll(updatedPreferences);
+                Collections.sort(userPreferences, MainActivity::compareTimeIntervals);
                 adapter.notifyDataSetChanged();
-                saveUserPreferences(); //Save changes
             }
         }
     }

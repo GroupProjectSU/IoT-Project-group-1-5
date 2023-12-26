@@ -64,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";  //this constant is used to categorise the log messages in a tag, so that we can filter the log messages
     private static final String SERVER_URI = "tcp://test.mosquitto.org:1883"; //this tells the client where to connect to the broker, for publishing and recieving messages.
     private static final String topic = "iot/sensor"; //the topic where the lux sensors readings are being published
-    private MqttAndroidClient client; //the MqttAndroidClient allows the application to connect and communicate with to the broker
+    private static MqttAndroidClient client; //the MqttAndroidClient allows the application to connect and communicate with to the broker
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,6 +156,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public static MqttAndroidClient getMqttClient() {
+        return client;
+    }
+
     private void subscribeToTopic() { //this method makes the client subscribe to a topic, so that the application can recieve the lux values from the lux sensor
         client.subscribe(topic, 1, null, new IMqttActionListener() { //this method attempts to subscribe to a specific topic (iot/sensor), with information regarding quality of service (1 as in atleast one try for the broker to deliver the message), and it also includes a listener as a parameter that triggers callbacks regarding the subscription attempt.
             @Override
@@ -184,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
                     String publishTopic = "iot/switch";
                     String message = Boolean.toString(isChecked);
                     client.publish(publishTopic, message.getBytes(), 1, false);
-                    Log.d(TAG, "The swithces is checked: " + message + " + and it's state has been published to the topic: " + publishTopic);
+                    Log.d(TAG, "The swithces state is checked: " + message + " + and it's state has been published to the topic: " + publishTopic);
                 } else {
                     Log.d(TAG, "The switches state has not been published, check if the MQTT client is connected");
                 }
@@ -207,6 +211,7 @@ public class MainActivity extends AppCompatActivity {
         int endHour = timePicker2.getCurrentHour();
         int endMinute = timePicker2.getCurrentMinute();
 
+
         if (valueInput.getText().toString().isEmpty()) {
             showValueInputErrorDialog();
             return;
@@ -223,12 +228,14 @@ public class MainActivity extends AppCompatActivity {
 
         TimeInterval newInterval = new TimeInterval(startHour, startMinute, endHour, endMinute, value);
 
+        ArrayList<TimeInterval> tempPreferences = new ArrayList<>(userPreferences);
+
         //before adding a new user preference, we must see if he has any other preference that conflicts with the one he wants to create
-        if (checkForConflictingPreferences(newInterval)) {
+        if (OverlappingTimeintervallChecker.checkForConflictingPreferences(tempPreferences, newInterval)) {
             showConflictResolutionDialog(newInterval);
         } else {
             userPreferences.add(newInterval);
-            saveUserPreferences(); //save the updated list to SharedPreferences
+            saveUserPreferences();
         }
     }
 
@@ -241,12 +248,18 @@ public class MainActivity extends AppCompatActivity {
         editor.putString("userPreferences", json); //puts the json string (userpreference list) in the key "userPreferences"
         editor.apply(); //applies the changes to the file
 
-        if(client != null && client.isConnected()) {
+        publishUserPreferences();
+    }
+
+    public void publishUserPreferences() {
+        if (client != null && client.isConnected()) {
+            Gson gson = new Gson();
+            String json = gson.toJson(userPreferences);
             String publishTopic = "iot/prefLux";
             client.publish(publishTopic, json.getBytes(), 1, false);
-            Log.d(TAG, "A list of the Users preferences (Timeintevall) has been published to the MQTT topic: " + publishTopic);
+            Log.d(TAG, "Published user preferences to MQTT topic: " + publishTopic);
         } else {
-            Log.d(TAG, "the list of the users preferences has has not been published, check if the MQTT client is connected");
+            Log.d(TAG, "Cannot publish, MQTT client is not connected");
         }
     }
 
@@ -264,7 +277,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private int compareTimeIntervals(TimeInterval i1, TimeInterval i2) {
+    public static int compareTimeIntervals(TimeInterval i1, TimeInterval i2) {
         //compare by end time
         int endComparison = Integer.compare(i1.getEndHour() * 60 + i1.getEndMinute(),
                 i2.getEndHour() * 60 + i2.getEndMinute());
@@ -274,7 +287,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        saveUserPreferences(); //Override the onPause method to save the list of intervals when the application pauses
+        //Override the onPause method to save the list of intervals when the application pauses
     }
 
 
@@ -288,55 +301,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void handleScheduleButtonClick(View view) {
-        Intent intent = new Intent(MainActivity.this, ScheduleActivity.class); //navigate from MainActivity to ScheduleActivity
-        intent.putExtra("userPreferences", userPreferences); //sends data alongside the intent, in this case the userpreference-list
-        startActivityForResult(intent, 1); //startActivityForResult is used to start an activity and receive a result back from it (so that main activity can recieve changes regarding list data), the 1 is used as a code that can identify the request.
+        Intent intent = new Intent(MainActivity.this, ScheduleActivity.class);
+        intent.putExtra("userPreferences", userPreferences);
+        startActivityForResult(intent, 1);
     }
+
 
     @Override //this method handles the result returned from the ScheduleActivity via the startActivityForResult-method
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 1 && resultCode == RESULT_OK) { //if the result from activity is 1 (i.e. coming from Schedule activivty) and the operations in the activity was succeeded
-            //update userPreferences from the returned data
-            userPreferences = (ArrayList<TimeInterval>) data.getSerializableExtra("userPreferences"); //userPreferences is updated with data received from ScheduleActivity
-        }
-    }
-
-    private boolean checkForConflictingPreferences(TimeInterval newInterval) {
-        for (TimeInterval existingInterval : userPreferences) {
-            if (isTimeOverlap(existingInterval, newInterval)) {
-                return true;
+        if (resultCode == RESULT_OK) {
+            ArrayList<TimeInterval> updatedPreferences = (ArrayList<TimeInterval>) data.getSerializableExtra("userPreferences");
+            if (updatedPreferences != null) {
+                userPreferences.clear();
+                userPreferences.addAll(updatedPreferences);
+                saveUserPreferences(); // Save and publish
             }
         }
-        return false;
-    }
-
-    private boolean isTimeOverlap(TimeInterval interval1, TimeInterval interval2) {
-        //convert time-stamps to minutes since midnight
-        int start1 = interval1.getStartHour() * 60 + interval1.getStartMinute();
-        int end1 = interval1.getEndHour() * 60 + interval1.getEndMinute();
-        int start2 = interval2.getStartHour() * 60 + interval2.getStartMinute();
-        int end2 = interval2.getEndHour() * 60 + interval2.getEndMinute();
-
-        //handle intervals that cross midnight so that intervall with start times that is pre-midnight and end-times that are post midnight make sense.
-        if (end1 <= start1) end1 += 24 * 60;
-        if (end2 <= start2) end2 += 24 * 60;
-
-        //check if one time interval (1) is within one day and the other interval (2) spans across two days
-        if (end2 > 24 * 60 && start1 < end1) {
-            if (start1 < (end2 - 24 * 60)) return true;
-            if (end1 > start2 + 24 * 60) return true;
-        }
-
-        //check if time interval 2 is within one day and time interval 1 spans across two days
-        if (end1 > 24 * 60 && start2 < end2) {
-            if (start2 < (end1 - 24 * 60)) return true;
-            if (end2 > start1 + 24 * 60) return true;
-        }
-
-
-        //standard time overlap (check for intervals within the same day)
-        return start1 < end2 && start2 < end1;
     }
 
     private void showConflictResolutionDialog(TimeInterval newInterval) {
@@ -349,6 +330,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(DialogInterface dialog, int which) {
                 removeConflictingTimeInterval(newInterval);
                 dialog.dismiss();
+                saveUserPreferences();
             }
         });
 
@@ -367,12 +349,17 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<TimeInterval> intervalsToRemove = new ArrayList<>();
 
         for (TimeInterval interval : userPreferences) {
-            if (isTimeOverlap(interval, newInterval)) {
+            if (!interval.equals(newInterval) && OverlappingTimeintervallChecker.isTimeOverlap(interval, newInterval)) {
                 intervalsToRemove.add(interval);
             }
         }
 
         userPreferences.removeAll(intervalsToRemove);
-        userPreferences.add(newInterval);
+
+        // Check if newInterval already exists in userPreferences
+        if (!userPreferences.contains(newInterval)) {
+            userPreferences.add(newInterval);
+        }
     }
+
 }

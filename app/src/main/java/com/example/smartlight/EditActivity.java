@@ -2,17 +2,26 @@ package com.example.smartlight;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TimePicker;
 
+import java.util.ArrayList;
+
+import info.mqtt.android.service.MqttAndroidClient;
+
 public class EditActivity extends AppCompatActivity {
 
     private Button confirmButton, cancelButton;
     private TimePicker timePicker1, timePicker2;
     private EditText valueInput;
+    private ArrayList<TimeInterval> userPreferences; // Added to store all user preferences
+    private int selectedPosition;
+    private MqttAndroidClient client;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -28,14 +37,17 @@ public class EditActivity extends AppCompatActivity {
         timePicker1.setIs24HourView(true);
         timePicker2.setIs24HourView(true);
 
-        TimeInterval interval = (TimeInterval) getIntent().getSerializableExtra("selectedInterval");
-        int selectedPosition = getIntent().getIntExtra("selectedPosition", -1);
 
+        userPreferences = (ArrayList<TimeInterval>) getIntent().getSerializableExtra("userPreferences");
+        TimeInterval interval = (TimeInterval) getIntent().getSerializableExtra("selectedInterval");
+        selectedPosition = getIntent().getIntExtra("selectedPosition", -1);
+
+        confirmButton.setOnClickListener(v -> finishEditing(true, interval));
+        cancelButton.setOnClickListener(v -> finishEditing(false, null));
 
         populateFields(interval);
 
-        confirmButton.setOnClickListener(v -> finishEditing(true, interval, selectedPosition));
-        cancelButton.setOnClickListener(v -> finishEditing(false, null, -1));
+        client = MainActivity.getMqttClient();
     }
 
     private void populateFields(TimeInterval interval) {
@@ -48,7 +60,7 @@ public class EditActivity extends AppCompatActivity {
         }
     }
 
-    private void finishEditing(boolean isConfirmed, TimeInterval interval, int position) {
+    private void finishEditing(boolean isConfirmed, TimeInterval interval) {
         if (isConfirmed && interval != null) {
             interval.setStartHour(timePicker1.getCurrentHour());
             interval.setStartMinute(timePicker1.getCurrentMinute());
@@ -66,12 +78,68 @@ public class EditActivity extends AppCompatActivity {
             }
             interval.setValue(value);
 
-            Intent returnIntent = new Intent();
-            returnIntent.putExtra("updatedInterval", interval);
-            returnIntent.putExtra("updatedPosition", position);
-            setResult(RESULT_OK, returnIntent);
+            // Create a copy of userPreferences excluding the interval being edited
+            ArrayList<TimeInterval> tempPreferences = new ArrayList<>(userPreferences);
+            if (selectedPosition >= 0 && selectedPosition < userPreferences.size()) {
+                tempPreferences.remove(selectedPosition);
+            }
+
+            if (OverlappingTimeintervallChecker.checkForConflictingPreferences(tempPreferences, interval)) {
+                showConflictResolutionDialog(interval);
+            } else {
+                userPreferences.set(selectedPosition, interval); // Update the interval
+                updateAndReturn();
+            }
         } else {
             setResult(RESULT_CANCELED);
+            finish();
         }
+    }
+
+    private void showConflictResolutionDialog(TimeInterval interval) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Time Interval Conflict");
+        builder.setMessage("This time interval conflicts with existing intervals. Do you want to proceed and remove conflicting intervals?");
+
+        builder.setPositiveButton("Proceed", (dialog, which) -> {
+            removeConflictingIntervals(interval);
+            updateAndReturn(); // Call the updated method
+        });
+
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    private void removeConflictingIntervals(TimeInterval newInterval) {
+        ArrayList<TimeInterval> intervalsToRemove = new ArrayList<>();
+
+        for (TimeInterval interval : userPreferences) {
+            if (!interval.equals(newInterval) && OverlappingTimeintervallChecker.isTimeOverlap(interval, newInterval)) {
+                intervalsToRemove.add(interval);
+            }
+        }
+
+        userPreferences.removeAll(intervalsToRemove);
+
+        // Check if newInterval already exists in userPreferences
+        if (!userPreferences.contains(newInterval)) {
+            userPreferences.add(newInterval);
+        }
+    }
+
+    private void updateAndReturn() {
+        Intent returnIntent = new Intent();
+        returnIntent.putExtra("userPreferences", userPreferences); // Return the updated list
+        setResult(RESULT_OK, returnIntent);
+
+        // Save preferences and publish to MQTT
+        if (client != null && client.isConnected()) {
+            mqttpublisher.publishUserPreferences(this, client, userPreferences);
+        }
+
         finish();
-    }}
+    }
+
+}
