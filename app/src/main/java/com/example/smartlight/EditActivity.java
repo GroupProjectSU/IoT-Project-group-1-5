@@ -136,7 +136,7 @@ public class EditActivity extends AppCompatActivity {
 
         // Save preferences and publish to MQTT
         if (client != null && client.isConnected()) {
-            mqttpublisher.publishUserPreferences(this, client, userPreferences);
+            MainActivity.updateAndPublishPreferences(this, userPreferences, client, getSharedPreferences("com.example.smartlight.preferences", MODE_PRIVATE));
         }
 
         finish();

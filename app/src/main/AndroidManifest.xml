@@ -20,8 +20,6 @@
         android:theme="@style/Theme.SmartLight"
         tools:targetApi="31">
 
-        <!-- For MQTT -->
-        <service android:name=".MqttService" />
 
         <activity
             android:name=".EditActivity"

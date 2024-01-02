@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -59,7 +60,19 @@ public class ScheduleActivity extends AppCompatActivity {
     }
 
     private void setupListViewClickListener() {
-        scheduleList.setOnItemClickListener((parent, view, position, id) -> selectedPosition = position);
+        scheduleList.setOnItemClickListener((parent, view, position, id) -> {
+            if (selectedPosition == position) {
+                view.setBackgroundColor(Color.TRANSPARENT);
+                selectedPosition = -1;
+            } else {
+                selectedPosition = position;
+                for (int i = 0; i < parent.getChildCount(); i++) {
+                    parent.getChildAt(i).setBackgroundColor(Color.TRANSPARENT);
+                }
+                view.setBackgroundColor(Color.LTGRAY);
+            }
+            adapter.notifyDataSetChanged();
+        });
     }
 
     private void setupButtonListeners() {
@@ -105,8 +118,7 @@ public class ScheduleActivity extends AppCompatActivity {
     }
 
     private void saveAndUpdatePreferences() {
-        saveUserPreferences();
-        mqttpublisher.publishUserPreferences(this, client, userPreferences);
+        MainActivity.updateAndPublishPreferences(this, userPreferences, client, preferences);
     }
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {

@@ -6,7 +6,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
@@ -26,8 +25,6 @@ import java.util.Collections;
 
 import android.util.Log;
 
-
-import java.nio.file.attribute.UserPrincipal;
 
 
 
@@ -57,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
     private TimePicker timePicker1, timePicker2;
     private EditText valueInput;
     private ArrayList<TimeInterval> userPreferences;
-    private TextView luxView;
+    private TextView luxView, lampStatusLabel;
 
 
     //MQTT-variables
@@ -75,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
         initializeSharedPreferences();
         loadUserPreferences();
         setupButtonListeners();
-
         connectToMqttBroker();
     }
 
@@ -90,13 +86,13 @@ public class MainActivity extends AppCompatActivity {
         scheduleButton = findViewById(R.id.scheduleButton);
         valueInput = findViewById(R.id.valueInput);
         luxView = findViewById(R.id.lightIntensity);
+        lampStatusLabel = findViewById(R.id.switchStatusLabel);
 
         timePicker1.setIs24HourView(true);
         timePicker2.setIs24HourView(true);
+        homeButton.setBackgroundColor(getResources().getColor(R.color.dark_purple));
 
         setToggleButtonListener();
-
-        homeButton.setBackgroundColor(getResources().getColor(R.color.dark_purple));
     }
 
     private void initializeSharedPreferences() {
@@ -104,6 +100,13 @@ public class MainActivity extends AppCompatActivity {
         boolean switchState = preferencesToSave.getBoolean(switchStateKey, false);  //this retrieves the boolean value of the key "switchStateKey" in the preferences file, the false argument is just a default value that the get method will return if the "switchStateKey" has no value-pair. Then puts that value in a variable
         toggleButton.setChecked(switchState); //this then sets the switch state according to the retrieved boolean value.
     }
+
+    private void setupButtonListeners() {
+        addButton.setOnClickListener(this::handleAddButtonClick);
+        scheduleButton.setOnClickListener(this::handleScheduleButtonClick);
+
+    }
+
 
 
     private void connectToMqttBroker() {
@@ -156,7 +159,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public static MqttAndroidClient getMqttClient() {
+    public static MqttAndroidClient getMqttClient() {   //this gives the other classes access to the mqtt client so that they can use it to publish to the broker
         return client;
     }
 
@@ -179,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 //Save the state of the switch
+                lampStatusLabel.setText(isChecked ? "Lamp is ON" : "Lamp is OFF");
                 SharedPreferences.Editor editor = preferencesToSave.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
                 editor.putBoolean(switchStateKey, isChecked); //puts the new value of the key "switchStateKey" to the boolean of the switch that represents it's state
                 editor.apply(); //applies the changes to the file
@@ -187,21 +191,14 @@ public class MainActivity extends AppCompatActivity {
                 if (client != null && client.isConnected()) {
                     String publishTopic = "iot/switch";
                     String message = Boolean.toString(isChecked);
-                    client.publish(publishTopic, message.getBytes(), 1, false);
-                    Log.d(TAG, "The swithces state is checked: " + message + " + and it's state has been published to the topic: " + publishTopic);
+                    client.publish(publishTopic, message.getBytes(), 1, true);
+                    Log.d(TAG, "The switches state is checked: " + message + " + and it's state has been published to the topic: " + publishTopic);
                 } else {
                     Log.d(TAG, "The switches state has not been published, check if the MQTT client is connected");
                 }
 
             }
         });
-    }
-
-
-    private void setupButtonListeners() {
-        addButton.setOnClickListener(this::handleAddButtonClick);
-        scheduleButton.setOnClickListener(this::handleScheduleButtonClick);
-
     }
 
 
@@ -235,31 +232,56 @@ public class MainActivity extends AppCompatActivity {
             showConflictResolutionDialog(newInterval);
         } else {
             userPreferences.add(newInterval);
-            saveUserPreferences();
+            updateAndPublishPreferences(this, userPreferences, client, preferencesToSave);
         }
     }
 
-    private void saveUserPreferences() {
-        //Sort and save the list
-        Collections.sort(userPreferences, (i1, i2) -> compareTimeIntervals(i1, i2)); //sorts the list according to the compareTimeIntervals method as a comparator
-        SharedPreferences.Editor editor = preferencesToSave.edit(); //SharedPreferences.Editor object allows you to modify the values in SharedPreferences (in this case the preferences file)
-        Gson gson = new Gson(); //gson is a library that can convert java objects to a JSON formatted string and vice versa. This was needed since lists was too complex to be stored in the sharedpreferences
-        String json = gson.toJson(userPreferences); //converts the userpreference list into JSON format
-        editor.putString("userPreferences", json); //puts the json string (userpreference list) in the key "userPreferences"
-        editor.apply(); //applies the changes to the file
 
-        publishUserPreferences();
+    private static void saveUserPreferences(ArrayList<TimeInterval> userPrefs, SharedPreferences sharedPreferences) {
+
+        Collections.sort(userPrefs, (i1, i2) -> compareTimeIntervals(i1, i2));
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        Gson gson = new Gson();
+        String json = gson.toJson(userPrefs);
+        editor.putString("userPreferences", json);
+        editor.apply();
     }
 
-    public void publishUserPreferences() {
+
+    public static void updateAndPublishPreferences(Context context, ArrayList<TimeInterval> userPrefs, MqttAndroidClient mqttClient, SharedPreferences sharedPreferences) {
+        //save
+        saveUserPreferences(userPrefs, sharedPreferences);
+
+        //publish
+        if (mqttClient != null && mqttClient.isConnected()) {
+            publishUserPreferences(mqttClient, userPrefs, "iot/prefLux");
+        } else {
+            Log.e(TAG, "MQTT Client is not connected. Attempting to reconnect...");
+            // Attempt to reconnect and then publish
+            mqttClient.connect(null, new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    Log.d(TAG, "Reconnected to MQTT Broker. Attempting to publish again.");
+                    publishUserPreferences(mqttClient, userPrefs, "iot/prefLux");
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    Log.e(TAG, "Failed to reconnect to MQTT Broker: " + exception.getMessage());
+                }
+            });
+        }
+    }
+
+    public static void publishUserPreferences(MqttAndroidClient client, ArrayList<TimeInterval> userPreferences, String topic) {
         if (client != null && client.isConnected()) {
             Gson gson = new Gson();
             String json = gson.toJson(userPreferences);
-            String publishTopic = "iot/prefLux";
-            client.publish(publishTopic, json.getBytes(), 1, false);
-            Log.d(TAG, "Published user preferences to MQTT topic: " + publishTopic);
+            client.publish(topic, json.getBytes(), 1, true);
+            Log.d(TAG, "An updated user preference list has been published to the topic: " + topic);
+
         } else {
-            Log.d(TAG, "Cannot publish, MQTT client is not connected");
+            Log.d(TAG, "The user preference list failed to publish, check if the client is connected");
         }
     }
 
@@ -287,7 +309,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        //Override the onPause method to save the list of intervals when the application pauses
     }
 
 
@@ -315,7 +336,6 @@ public class MainActivity extends AppCompatActivity {
             if (updatedPreferences != null) {
                 userPreferences.clear();
                 userPreferences.addAll(updatedPreferences);
-                saveUserPreferences(); // Save and publish
             }
         }
     }
@@ -330,7 +350,7 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(DialogInterface dialog, int which) {
                 removeConflictingTimeInterval(newInterval);
                 dialog.dismiss();
-                saveUserPreferences();
+                updateAndPublishPreferences(MainActivity.this, userPreferences, client, preferencesToSave);
             }
         });
 

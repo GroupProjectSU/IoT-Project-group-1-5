@@ -47,19 +47,24 @@
         android:layout_height="wrap_content"
         android:text="ADD"/>
 
-
     <Switch
         android:id="@+id/toggleButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="10dp"
         android:minHeight="48dp"
         android:scaleX="2"
-        android:scaleY="2"
-        />
+        android:scaleY="2"/>
 
 
+    <TextView
+        android:id="@+id/switchStatusLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:text="     Lamp is OFF"
+        android:padding="8dp"/>
 
     <View
         android:layout_width="match_parent"
