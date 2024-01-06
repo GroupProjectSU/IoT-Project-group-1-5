@@ -4,7 +4,6 @@ import java.io.Serializable;
 
 public class TimeInterval implements Serializable {
     //It needs to be serializabled to be able to serialize through different activities
-
     private int startHour;
     private int startMinute;
     private int endHour;

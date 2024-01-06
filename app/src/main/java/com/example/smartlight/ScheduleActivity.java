@@ -45,7 +45,8 @@ public class ScheduleActivity extends AppCompatActivity {
         userPreferences = (ArrayList<TimeInterval>) getIntent().getSerializableExtra("userPreferences");
         setupListViewAdapter();
         setupListViewClickListener();
-        setupButtonListeners();
+        prepareButtonListeners();
+        clearSelection();
 
         client = MainActivity.getMqttClient();
     }
@@ -75,7 +76,7 @@ public class ScheduleActivity extends AppCompatActivity {
         });
     }
 
-    private void setupButtonListeners() {
+    private void prepareButtonListeners() {
         removeButton.setOnClickListener(this::handleRemoveButtonClick);
         resetButton.setOnClickListener(this::handleResetButtonClick);
         editButton.setOnClickListener(this::handleEditButtonClick);
@@ -86,8 +87,7 @@ public class ScheduleActivity extends AppCompatActivity {
     private void handleRemoveButtonClick(View view) {
         if (selectedPosition >= 0 && !userPreferences.isEmpty()) {
             userPreferences.remove(selectedPosition);
-            adapter.notifyDataSetChanged();
-            selectedPosition = -1;
+            clearSelection();
             saveAndUpdatePreferences();
         }
     }
@@ -113,6 +113,7 @@ public class ScheduleActivity extends AppCompatActivity {
             intent.putExtra("selectedInterval", selectedInterval);
             intent.putExtra("selectedPosition", selectedPosition);
             intent.putExtra("userPreferences", userPreferences);
+            clearSelection();
             startActivityForResult(intent, 2);
         }
     }
@@ -140,6 +141,14 @@ public class ScheduleActivity extends AppCompatActivity {
         String json = gson.toJson(userPreferences);
         editor.putString("userPreferences", json);
         editor.apply();
+    }
+
+    private void clearSelection() {
+        selectedPosition = -1;
+        adapter.notifyDataSetChanged();
+        for (int i = 0; i < scheduleList.getChildCount(); i++) {
+            scheduleList.getChildAt(i).setBackgroundColor(Color.TRANSPARENT);
+        }
     }
 
     private void navigateBackToMainActivity(View view) {

@@ -10,11 +10,9 @@ import android.widget.EditText;
 import android.widget.TimePicker;
 
 import java.util.ArrayList;
-
 import info.mqtt.android.service.MqttAndroidClient;
 
 public class EditActivity extends AppCompatActivity {
-
     private Button confirmButton, cancelButton;
     private TimePicker timePicker1, timePicker2;
     private EditText valueInput;
@@ -27,7 +25,6 @@ public class EditActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.screen3);
 
-
         confirmButton = findViewById(R.id.confirmButton);
         cancelButton = findViewById(R.id.cancelButton);
         timePicker1 = findViewById(R.id.timePicker1);
@@ -37,7 +34,6 @@ public class EditActivity extends AppCompatActivity {
         timePicker1.setIs24HourView(true);
         timePicker2.setIs24HourView(true);
 
-
         userPreferences = (ArrayList<TimeInterval>) getIntent().getSerializableExtra("userPreferences");
         TimeInterval interval = (TimeInterval) getIntent().getSerializableExtra("selectedInterval");
         selectedPosition = getIntent().getIntExtra("selectedPosition", -1);
@@ -45,20 +41,9 @@ public class EditActivity extends AppCompatActivity {
         confirmButton.setOnClickListener(v -> finishEditing(true, interval));
         cancelButton.setOnClickListener(v -> finishEditing(false, null));
 
-        populateFields(interval);
-
         client = MainActivity.getMqttClient();
     }
 
-    private void populateFields(TimeInterval interval) {
-        if (interval != null) {
-            timePicker1.setCurrentHour(interval.getStartHour());
-            timePicker1.setCurrentMinute(interval.getStartMinute());
-            timePicker2.setCurrentHour(interval.getEndHour());
-            timePicker2.setCurrentMinute(interval.getEndMinute());
-            valueInput.setText(String.valueOf(interval.getValue()));
-        }
-    }
 
     private void finishEditing(boolean isConfirmed, TimeInterval interval) {
         if (isConfirmed && interval != null) {
@@ -70,11 +55,10 @@ public class EditActivity extends AppCompatActivity {
             String valueText = valueInput.getText().toString();
             int value;
             try {
-
                 double doubleValue = Double.parseDouble(valueText);
                 value = (int) Math.round(doubleValue);
             } catch (NumberFormatException e) {
-                value = 0; //For now the default will be 0, maybe change to an alert later.
+                value = 0;
             }
             interval.setValue(value);
 
@@ -90,6 +74,7 @@ public class EditActivity extends AppCompatActivity {
                 userPreferences.set(selectedPosition, interval); // Update the interval
                 updateAndReturn();
             }
+
         } else {
             setResult(RESULT_CANCELED);
             finish();
@@ -102,7 +87,7 @@ public class EditActivity extends AppCompatActivity {
         builder.setMessage("This time interval conflicts with existing intervals. Do you want to proceed and remove conflicting intervals?");
 
         builder.setPositiveButton("Proceed", (dialog, which) -> {
-            removeConflictingIntervals(interval);
+            OverlappingTimeintervallChecker.removeConflictingIntervals(interval, userPreferences);
             updateAndReturn(); // Call the updated method
         });
 
@@ -112,22 +97,6 @@ public class EditActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void removeConflictingIntervals(TimeInterval newInterval) {
-        ArrayList<TimeInterval> intervalsToRemove = new ArrayList<>();
-
-        for (TimeInterval interval : userPreferences) {
-            if (!interval.equals(newInterval) && OverlappingTimeintervallChecker.isTimeOverlap(interval, newInterval)) {
-                intervalsToRemove.add(interval);
-            }
-        }
-
-        userPreferences.removeAll(intervalsToRemove);
-
-        // Check if newInterval already exists in userPreferences
-        if (!userPreferences.contains(newInterval)) {
-            userPreferences.add(newInterval);
-        }
-    }
 
     private void updateAndReturn() {
         Intent returnIntent = new Intent();
@@ -138,7 +107,6 @@ public class EditActivity extends AppCompatActivity {
         if (client != null && client.isConnected()) {
             MainActivity.updateAndPublishPreferences(this, userPreferences, client, getSharedPreferences("com.example.smartlight.preferences", MODE_PRIVATE));
         }
-
         finish();
     }
 

@@ -38,4 +38,22 @@ public class OverlappingTimeintervallChecker {
         //standard time overlap (check for intervals within the same day)
         return start1 < end2 && start2 < end1;
     }
+
+    public static void removeConflictingIntervals(TimeInterval newInterval, ArrayList<TimeInterval> userPreferences) {
+        ArrayList<TimeInterval> intervalsToRemove = new ArrayList<>();
+
+        for (TimeInterval interval : userPreferences) {
+            if (!interval.equals(newInterval) && OverlappingTimeintervallChecker.isTimeOverlap(interval, newInterval)) {
+                intervalsToRemove.add(interval);
+            }
+        }
+
+        userPreferences.removeAll(intervalsToRemove);
+
+        // Check if newInterval already exists in userPreferences
+        if (!userPreferences.contains(newInterval)) {
+            userPreferences.add(newInterval);
+        }
+    }
+
 }

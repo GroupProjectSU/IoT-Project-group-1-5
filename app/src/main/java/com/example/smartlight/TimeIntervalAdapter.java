@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
+
 import java.util.List;
 
 public class TimeIntervalAdapter extends ArrayAdapter<TimeInterval> {
@@ -24,7 +25,7 @@ public class TimeIntervalAdapter extends ArrayAdapter<TimeInterval> {
 
         TextView textView = convertView.findViewById(R.id.textView);
         String formattedText = String.format("%02d:%02d-%02d:%02d       %d lux", //maybe change the format later
-        interval.getStartHour(), interval.getStartMinute(), interval.getEndHour(), interval.getEndMinute(), (int) interval.getValue());
+                interval.getStartHour(), interval.getStartMinute(), interval.getEndHour(), interval.getEndMinute(), (int) interval.getValue());
         textView.setText(formattedText);
 
         return convertView;

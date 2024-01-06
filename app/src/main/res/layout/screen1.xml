@@ -9,7 +9,7 @@
         android:id="@+id/lightIntensity"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="current light intensity"
+        android:text="current light intensity: "
         android:padding="16dp"
         android:background="#E0E0E0"/>
 
