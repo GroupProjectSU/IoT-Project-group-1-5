@@ -71,11 +71,11 @@ def setPrefLux():
     current_time = now.time()
 
     # Default values in case there is no current time interval
-    if (time(23, 30) < current_time < time(7, 30)):
+    if (time(00, 00) <= current_time < time(8, 00)):
         default_value = 0
-    elif (time(20, 30) <= current_time <= time(23, 30)):
+    elif (time(21, 00) <= current_time <= time(23, 59)):
         default_value = 10
-    elif (time(7, 30) <= current_time <= time(7, 40)):
+    elif (time(8, 00) <= current_time <= time(8, 10)):
         default_value = 20
     else:
         default_value = 50
