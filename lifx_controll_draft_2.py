@@ -2,7 +2,7 @@ import requests  # makes it possible to send data over the internet
 import json      # makes it possible to handle data in JSON format 
 
 LAMP_ID = "id:d073d53b9e28"
-api_token = "c065424eafcbd07ffdc28594fe30f2d7519bb72276c2de9699201a719d710ef3"  # LIFX API token used as authorization to access an accounts LIFX bulbs
+api_token = ""  # LIFX API token used as authorization to access an accounts LIFX bulbs
 
 def set_lifx_brightness(token, selector, brightness, powerValue): # token parameter to access an accounts LIFX bulbs, selector parameter to specify which bulb to control, brightness paramater to specify the desired brightnesslevel
     # The method constructs a request to send data over to the LIFX system. 
