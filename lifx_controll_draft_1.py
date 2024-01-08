@@ -1,4 +1,4 @@
-api_token = "c065424eafcbd07ffdc28594fe30f2d7519bb72276c2de9699201a719d710ef3"  # LIFX API token used as authorization to access an accounts LIFX bulbs
+api_token = ""  # LIFX API token used as authorization to access an accounts LIFX bulbs
 
 import requests  # makes it possible to send data over the internet
 import json      # makes it possible to handle data in JSON format 
