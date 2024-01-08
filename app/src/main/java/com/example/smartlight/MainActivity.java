@@ -139,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "message received from the topic " + topic + ": " + luxValue);
                 System.out.println("message received in topic " + topic + ": " + luxValue);
                 System.out.println(message);
-                luxView.setText("Current light intensity: " + luxValue);//shows the lux value in the application
+                luxView.setText("Current lux: " + luxValue);//shows the lux value in the application
             }
 
             @Override

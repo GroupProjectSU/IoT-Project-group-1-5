@@ -9,7 +9,7 @@
         android:id="@+id/lightIntensity"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="current light intensity: "
+        android:text="Current lux: "
         android:padding="16dp"
         android:background="#E0E0E0"/>
 
@@ -37,7 +37,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="48dp"
-        android:hint="Value"
+        android:hint="Value (lux)"
         android:inputType="numberDecimal"/>
 
 
@@ -47,16 +47,22 @@
         android:layout_height="wrap_content"
         android:text="ADD"/>
 
+    <TextView
+        android:id="@+id/emptyView"
+        android:layout_width="91dp"
+        android:layout_height="12dp"
+        android:layout_gravity="center_horizontal"
+        android:padding="8dp" />
+
     <Switch
         android:id="@+id/toggleButton"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="30dp"
         android:layout_gravity="center_horizontal"
         android:layout_marginTop="10dp"
         android:minHeight="48dp"
         android:scaleX="2"
-        android:scaleY="2"/>
-
+        android:scaleY="2" />
 
     <TextView
         android:id="@+id/switchStatusLabel"
