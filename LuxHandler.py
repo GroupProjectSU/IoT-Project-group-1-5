@@ -30,7 +30,7 @@ topic_sub2 = "iot/switch"
 
 #Lamp
 LAMP_ID = "id:d073d53b9e28"
-api_token = "c065424eafcbd07ffdc28594fe30f2d7519bb72276c2de9699201a719d710ef3"
+api_token = ""
 brightness_level = 1 
 is_adjusting = False
 
