@@ -135,14 +135,6 @@ public class ScheduleActivity extends AppCompatActivity {
         }
     }
 
-    private void saveUserPreferences() {
-        SharedPreferences.Editor editor = preferences.edit();
-        Gson gson = new Gson();
-        String json = gson.toJson(userPreferences);
-        editor.putString("userPreferences", json);
-        editor.apply();
-    }
-
     private void clearSelection() {
         selectedPosition = -1;
         adapter.notifyDataSetChanged();
